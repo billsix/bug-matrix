@@ -145,68 +145,6 @@
                                      (7 8)))))
  }
 
-{define cartesian-product
-  [|lol|
-   {##define cp
-     [|lol|
-      {cond
-       ((null? (cdr lol))
-        (map list (car lol)))
-       (#t
-        (flatmap [|x| (map [|y| (cons x y)]
-                           (cp (cdr lol)))]
-                 (car lol)))}]}
-   {cond ((null? lol) '())
-         (#t (cp lol))}]}
-
-{unit-test
- (equal? (cartesian-product '())
-         '())
- (equal? (cartesian-product '((1 2 3)))
-         '((1) (2) (3)))
- (equal? (cartesian-product '((1 2 3)
-                              (4 5 6)))
-         '((1 4)
-           (1 5)
-           (1 6)
-           (2 4)
-           (2 5)
-           (2 6)
-           (3 4)
-           (3 5)
-           (3 6)))
- (equal? (cartesian-product '((1 2 3)
-                              (4 5 6)
-                              (7 8 9)))
-         '((1 4 7)
-           (1 4 8)
-           (1 4 9)
-           (1 5 7)
-           (1 5 8)
-           (1 5 9)
-           (1 6 7)
-           (1 6 8)
-           (1 6 9)
-           (2 4 7)
-           (2 4 8)
-           (2 4 9)
-           (2 5 7)
-           (2 5 8)
-           (2 5 9)
-           (2 6 7)
-           (2 6 8)
-           (2 6 9)
-           (3 4 7)
-           (3 4 8)
-           (3 4 9)
-           (3 5 7)
-           (3 5 8)
-           (3 5 9)
-           (3 6 7)
-           (3 6 8)
-           (3 6 9)))
- }
-
 {define matrix-indices
   [|m|
    (cartesian-product (map [|x| (stream->list
@@ -387,31 +325,6 @@
                      (4 2 6))))
      ))
  }
-
-
-;; todo - handle case where index is too large
-;; N.B this is called list-sef! instead of list-ref-set!
-;;  to facilitate use by setf!, as setf! drops the -ref suffix
-{define list-set!
-  [|l index val|
-   (if (equal? 0 index)
-       [(setf! (car l) val)]
-       [(list-set! (cdr l) (- index 1) val)])
-   ]}
-
-{unit-test
- {let ((foo '(bar baz quux)))
-   (list-set! foo 0 'blah)
-   (equal? foo '(blah baz quux))}
- {let ((foo '(bar baz quux)))
-   (list-set! foo 1 'blah)
-   (equal? foo '(bar blah quux))
-   }
- ;; N.B setf!
- {let ((foo '(bar baz quux)))
-   {setf! (list-ref foo 2) 'blah}
-   (equal? foo '(bar baz blah))
-   }}
 
 
 {define matrix-row-set!
@@ -676,7 +589,6 @@
  }
 
 
-;; todo - define transpose
 {define matrix-transpose
   [|m|
    {destructuring-bind (rows columns)
@@ -704,4 +616,69 @@
            ((compose matrix-transpose
                      matrix-transpose) m))}
 
+ (equal? (matrix-transpose (make-matrix '((1)
+                                          (2)
+                                          (3))))
+         (make-matrix '((1 2 3))))
  }
+
+{define matrix-sum
+  [|m1 m2 #!key (onError noop)|
+   (if (not (equal? (matrix-size m1) (matrix-size m2)))
+       [(onError)]
+       [(make-matrix (map [|r1 r2|
+                           (map + r1 r2)]
+                          (matrix-rows m1)
+                          (matrix-rows m2)))])]}
+
+{unit-test
+ {let ((m (make-matrix '((1 2)
+                         (3 4))))
+       (m2 (make-matrix '((4 3)
+                          (2 1))))
+       (m3 (make-matrix '((4 3 3)
+                          (2 1 3)))))
+   {and (equal? (make-matrix '((5 5)
+                               (5 5)))
+                (matrix-sum m m2))
+        (equal? 'noop (matrix-sum m m3))}}
+}
+
+{define matrix-scale
+  [|m1 k|
+   (make-matrix (map [|r|
+                      (map [|x| (* k x)] r)]
+                     (matrix-rows m1)))]}
+
+{unit-test
+ {let ((m (make-matrix '((1 2)
+                         (3 4)))))
+   (equal? (make-matrix '((6 12)
+                          (18 24)))
+           (matrix-scale m 6))}
+}
+
+
+{define matrix-dot-product
+  [|v1 v2|
+   {destructuring-bind
+    (ignore
+     v1-columns
+     ignore2
+     v2-columns)
+    (append (matrix-size v1)
+            (matrix-size v2))
+    (if (not {and (equal? v1-columns 1)
+                  (equal? v2-columns 1)})
+        ['too-many-columns-to-be-vector]
+        [(sum (map *
+                   (car (matrix-rows (matrix-transpose v1)))
+                   (car (matrix-rows (matrix-transpose v2)))))
+         ])}]}
+
+{unit-test
+ {let ((m  (matrix-transpose (make-matrix '((1 2)))))
+       (m2 (matrix-transpose (make-matrix '((3 4))))))
+   (equal? (matrix-dot-product m m2)
+           11)}
+}
